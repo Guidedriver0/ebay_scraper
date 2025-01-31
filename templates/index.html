@@ -9,6 +9,8 @@
 <body class="bg-light">
     <div class="container mt-5">
         <h1 class="text-center mb-4">eBay Listing Scraper</h1>
+
+        <!-- Form to enter eBay URL -->
         <form method="POST" class="mb-4">
             <div class="input-group">
                 <input type="text" name="ebay_url" class="form-control" placeholder="Enter eBay Listing URL" required>
@@ -16,15 +18,30 @@
             </div>
         </form>
 
+        <!-- Action Buttons -->
+        <div class="mb-3">
+            <button type="button" class="btn btn-danger" onclick="confirmDelete()">Delete Selected</button>
+            <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#pdfModal">Export Selected to PDF</button>
+            <a href="/json" class="btn btn-info">View Data as JSON</a>
+        </div>
+
+        <!-- Table for displaying listings -->
         <h3>Saved Listings</h3>
-        <form method="POST" action="/export_pdf">
+        <form method="POST" id="actionForm">
             <table class="table table-bordered">
                 <thead>
                     <tr>
                         <th>Select</th>
                         <th>Title</th>
                         <th>Price</th>
+                        <th>Condition</th>
                         <th>Seller</th>
+                        <th>Feedback</th>
+                        <th>Location</th>
+                        <th>Shipping Cost</th>
+                        <th>Return Policy</th>
+                        <th>Description</th>
+                        <th>Images</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -34,14 +51,122 @@
                         <td>{{ listing[1] }}</td>
                         <td>{{ listing[2] }}</td>
                         <td>{{ listing[3] }}</td>
+                        <td>{{ listing[4] }}</td>
+                        <td>{{ listing[5] }}</td>
+                        <td>{{ listing[6] }}</td>
+                        <td>{{ listing[7] }}</td>
+                        <td>{{ listing[8] }}</td>
+                        <td>{{ listing[9][:200] }}...</td>  <!-- Shortened description -->
+                        <td>
+                            {% for img in listing[10].split('; ') %}
+                                <img src="{{ img }}" class="img-thumbnail" width="75">
+                            {% endfor %}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
-            <button type="submit" class="btn btn-success">Export Selected to PDF</button>
         </form>
 
-        <a href="/json" class="btn btn-info mt-3">View Data as JSON</a>
+        <!-- Modal for Selecting PDF Fields -->
+        <div class="modal fade" id="pdfModal" tabindex="-1" aria-labelledby="pdfModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="pdfModalLabel">Select Fields to Export</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Select which elements to include in the exported PDF:</p>
+                        <form id="pdfForm">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="selected_fields" value="title" checked>
+                                <label class="form-check-label">Title</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="selected_fields" value="price" checked>
+                                <label class="form-check-label">Price</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="selected_fields" value="condition">
+                                <label class="form-check-label">Condition</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="selected_fields" value="seller_name">
+                                <label class="form-check-label">Seller Name</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="selected_fields" value="seller_feedback_score">
+                                <label class="form-check-label">Seller Feedback Score</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="selected_fields" value="shipping_location">
+                                <label class="form-check-label">Shipping Location</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="selected_fields" value="shipping_cost">
+                                <label class="form-check-label">Shipping Cost</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="selected_fields" value="return_policy">
+                                <label class="form-check-label">Return Policy</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="selected_fields" value="description">
+                                <label class="form-check-label">Description</label>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-success" onclick="submitPdfForm()">Export PDF</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
+
+    <script>
+    function confirmDelete() {
+        let checkboxes = document.querySelectorAll('input[name="selected_ids"]:checked');
+        if (checkboxes.length === 0) {
+            alert("No entries selected.");
+            return;
+        }
+
+        if (confirm("Are you sure you want to delete the selected entries?")) {
+            document.getElementById("actionForm").action = "/delete_selected";
+            document.getElementById("actionForm").submit();
+        }
+    }
+
+    function submitPdfForm() {
+        let checkboxes = document.querySelectorAll('input[name="selected_ids"]:checked');
+        if (checkboxes.length === 0) {
+            alert("No entries selected.");
+            return;
+        }
+
+        let pdfForm = document.getElementById("pdfForm");
+        let actionForm = document.getElementById("actionForm");
+
+        // Append selected fields dynamically
+        pdfForm.querySelectorAll('input[name="selected_fields"]:checked').forEach(field => {
+            let hiddenInput = document.createElement("input");
+            hiddenInput.type = "hidden";
+            hiddenInput.name = "selected_fields";
+            hiddenInput.value = field.value;
+            actionForm.appendChild(hiddenInput);
+        });
+
+        // Submit form
+        actionForm.action = "/export_pdf";
+        actionForm.submit();
+    }
+    </script>
+
+    <!-- Bootstrap JavaScript (required for modal) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
