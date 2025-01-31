@@ -60,7 +60,7 @@
                         <td>
                             {% if listing|length > 10 and listing[10] %}
                                 {% for img in listing[10].split('; ') %}
-                                    <img src="{{ img }}" class="img-thumbnail" width="75">
+                                    <img src="{{ img }}" class="img-thumbnail" width="75" onerror="this.style.display='none'">
                                 {% endfor %}
                             {% else %}
                                 No images available
@@ -117,17 +117,19 @@
 
     <script>
     function confirmDelete() {
-        let checkboxes = document.querySelectorAll('input[name="selected_ids"]:checked');
-        if (checkboxes.length === 0) {
-            alert("No entries selected.");
-            return;
-        }
-
-        if (confirm("Are you sure you want to delete the selected entries?")) {
-            document.getElementById("actionForm").action = "/delete_selected";
-            document.getElementById("actionForm").submit();
-        }
+    let checkboxes = document.querySelectorAll('input[name="selected_ids"]:checked');
+    if (checkboxes.length === 0) {
+        alert("No entries selected.");
+        return;
     }
+
+    if (confirm("Are you sure you want to delete the selected entries?")) {
+        let form = document.getElementById("actionForm");
+        form.action = "/delete_selected";
+        form.method = "POST";
+        form.submit();  // Submits form data instead of JSON
+    }
+}
 
     function submitPdfForm() {
         let checkboxes = document.querySelectorAll('input[name="selected_ids"]:checked');

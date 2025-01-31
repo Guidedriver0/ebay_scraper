@@ -53,7 +53,7 @@ def get_webdriver():
     return webdriver.Chrome(service=service, options=chrome_options)
 
 def get_ebay_listing(url):
-    """Scrapes an eBay listing for all key details, including images and location."""
+    """Scrapes an eBay listing for key details, including product images."""
     driver = get_webdriver()
     driver.get(url)
     time.sleep(3)  # Allow JavaScript to load
@@ -112,20 +112,20 @@ def get_ebay_listing(url):
     # Extract full item description
     try:
         description_tag = soup.find("div", {"id": "desc_ifr"})
-        if description_tag:
-            description = description_tag.text.strip()
-        else:
-            description = "Not Found"
+        description = description_tag.text.strip() if description_tag else "Not Found"
     except AttributeError:
         description = "Not Found"
 
-    # Extract all images
+    # Extract only the correct product images
     image_urls = []
     try:
-        img_tags = soup.select("img[src*='.jpg']")
-        for img in img_tags:
+        image_gallery = soup.find_all("img", {"src": True})  # Find all images on the page
+
+        for img in image_gallery:
             img_url = img["src"]
-            if "ebayimg.com" in img_url:
+
+            # Ensure only eBay product images are selected
+            if "ebayimg.com" in img_url and "s-l" in img_url:  # "s-l" ensures it's a product image
                 image_urls.append(img_url)
     except:
         image_urls = []
@@ -140,9 +140,10 @@ def get_ebay_listing(url):
         "shipping_cost": shipping_cost,
         "return_policy": return_policy,
         "description": description,
-        "image_urls": "; ".join(image_urls),
+        "image_urls": "; ".join(image_urls),  # Save as a string with semicolon separator
         "listing_url": url
     }
+
 
 def save_to_db(data):
     """Inserts scraped listing into the database."""
@@ -245,14 +246,16 @@ def export_pdf():
 
 @app.route("/delete_selected", methods=["POST"])
 def delete_selected():
-    """Deletes multiple selected entries from the database."""
-    selected_ids = request.json.get("selected_ids", [])
-    
+    """Deletes selected entries from the database."""
+    selected_ids = request.form.getlist("selected_ids")  # Get selected IDs from form data
+
     if not selected_ids:
         return jsonify({"status": "error", "message": "No entries selected"}), 400
 
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
+    
+    # Dynamically generate the SQL query to delete selected entries
     query = f"DELETE FROM listings WHERE id IN ({','.join(['?'] * len(selected_ids))})"
     c.execute(query, selected_ids)
     conn.commit()
