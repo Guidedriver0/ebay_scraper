@@ -16,3 +16,8 @@ new feats:
 different shows
 different item types
 login thing
+Desginer and director login/approval
+shortlists
+marketplace/etzy/gumtree
+finance reporting for show
+devon is a whore
