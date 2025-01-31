@@ -28,40 +28,48 @@
         <!-- Table for displaying listings -->
         <h3>Saved Listings</h3>
         <form method="POST" id="actionForm">
-            <table class="table table-bordered">
+            <table class="table table-bordered" id="listingTable">
                 <thead>
                     <tr>
                         <th>Select</th>
-                        <th>Title</th>
-                        <th>Price</th>
-                        <th>Condition</th>
-                        <th>Seller</th>
-                        <th>Feedback</th>
-                        <th>Location</th>
-                        <th>Shipping Cost</th>
-                        <th>Return Policy</th>
-                        <th>Description</th>
-                        <th>Images</th>
+                        <th class="title">Title</th>
+                        <th class="price">Price</th>
+                        <th class="condition">Condition</th>
+                        <th class="seller">Seller</th>
+                        <th class="location">Location</th>
+                        <th class="date_added">Date Added</th>
+                        <th class="images">Images</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for listing in listings %}
                     <tr>
                         <td><input type="checkbox" name="selected_ids" value="{{ listing[0] }}"></td>
-                        <td>{{ listing[1] if listing|length > 1 else "No Title" }}</td>
-                        <td>{{ listing[2] if listing|length > 2 else "No Price" }}</td>
-                        <td>{{ listing[3] if listing|length > 3 else "No Condition" }}</td>
-                        <td>{{ listing[4] if listing|length > 4 else "No Seller" }}</td>
-                        <td>{{ listing[5] if listing|length > 5 else "No Feedback" }}</td>
-                        <td>{{ listing[6] if listing|length > 6 else "No Location" }}</td>
-                        <td>{{ listing[7] if listing|length > 7 else "No Shipping Cost" }}</td>
-                        <td>{{ listing[8] if listing|length > 8 else "No Return Policy" }}</td>
-                        <td>{{ listing[9][:200] + "..." if listing|length > 9 and listing[9] else "No Description" }}</td>
-                        <td>
+                        <td class="title">{{ listing[1] if listing|length > 1 else "No Title" }}</td>
+                        <td class="price">{{ listing[2] if listing|length > 2 else "No Price" }}</td>
+                        <td class="condition">{{ listing[3] if listing|length > 3 else "No Condition" }}</td>
+                        <td class="seller">{{ listing[4] if listing|length > 4 else "No Seller" }}</td>
+                        <td class="location">{{ listing[6] if listing|length > 6 else "No Location" }}</td>
+                        <td class="date_added">{{ listing[11] if listing|length > 11 else "Unknown Date" }}</td>
+                        <td class="images">
                             {% if listing|length > 10 and listing[10] %}
-                                {% for img in listing[10].split('; ') %}
-                                    <img src="{{ img }}" class="img-thumbnail" width="75" onerror="this.style.display='none'">
-                                {% endfor %}
+                                <div id="carousel-{{ loop.index }}" class="carousel slide" data-bs-ride="carousel">
+                                    <div class="carousel-inner">
+                                        {% for img in listing[10].split('; ') %}
+                                        <div class="carousel-item {% if loop.first %}active{% endif %}">
+                                            <img src="{{ img }}" class="d-block w-100" style="max-height: 300px; object-fit: contain;">
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    <button class="carousel-control-prev" type="button" data-bs-target="#carousel-{{ loop.index }}" data-bs-slide="prev">
+                                        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                                        <span class="visually-hidden">Previous</span>
+                                    </button>
+                                    <button class="carousel-control-next" type="button" data-bs-target="#carousel-{{ loop.index }}" data-bs-slide="next">
+                                        <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                                        <span class="visually-hidden">Next</span>
+                                    </button>
+                                </div>
                             {% else %}
                                 No images available
                             {% endif %}
@@ -72,7 +80,7 @@
             </table>
         </form>
 
-        <!-- Modal for Selecting PDF Fields -->
+        <!-- PDF Export Modal -->
         <div class="modal fade" id="pdfModal" tabindex="-1" aria-labelledby="pdfModalLabel" aria-hidden="true">
             <div class="modal-dialog">
                 <div class="modal-content">
@@ -96,12 +104,8 @@
                                 <label class="form-check-label">Condition</label>
                             </div>
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="selected_fields" value="seller_name">
-                                <label class="form-check-label">Seller Name</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="selected_fields" value="seller_feedback_score">
-                                <label class="form-check-label">Seller Feedback Score</label>
+                                <input class="form-check-input" type="checkbox" name="selected_fields" value="seller">
+                                <label class="form-check-label">Seller</label>
                             </div>
                         </form>
                     </div>
@@ -112,24 +116,35 @@
                 </div>
             </div>
         </div>
-
     </div>
 
     <script>
     function confirmDelete() {
-    let checkboxes = document.querySelectorAll('input[name="selected_ids"]:checked');
-    if (checkboxes.length === 0) {
-        alert("No entries selected.");
-        return;
-    }
+        let checkboxes = document.querySelectorAll('input[name="selected_ids"]:checked');
+        if (checkboxes.length === 0) {
+            alert("No entries selected.");
+            return;
+        }
 
-    if (confirm("Are you sure you want to delete the selected entries?")) {
-        let form = document.getElementById("actionForm");
-        form.action = "/delete_selected";
-        form.method = "POST";
-        form.submit();  // Submits form data instead of JSON
+        if (confirm("Are you sure you want to delete the selected entries?")) {
+            let form = document.getElementById("actionForm");
+            form.action = "/delete_selected";
+            form.method = "POST";
+
+            fetch("/delete_selected", {
+                method: "POST",
+                body: new FormData(form)
+            })
+            .then(response => {
+                if (response.ok) {
+                    location.reload();
+                } else {
+                    alert("Error deleting items.");
+                }
+            })
+            .catch(error => alert("Request failed: " + error));
+        }
     }
-}
 
     function submitPdfForm() {
         let checkboxes = document.querySelectorAll('input[name="selected_ids"]:checked');
@@ -154,7 +169,7 @@
     }
     </script>
 
-    <!-- Bootstrap JavaScript (required for modal) -->
+    <!-- Bootstrap JavaScript (for modal & carousel) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

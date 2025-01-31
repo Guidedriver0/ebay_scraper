@@ -41,7 +41,8 @@ def init_db():
             return_policy TEXT,
             description TEXT,
             image_urls TEXT,
-            listing_url TEXT
+            listing_url TEXT,
+            date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
     conn.commit()
@@ -53,10 +54,10 @@ def get_webdriver():
     return webdriver.Chrome(service=service, options=chrome_options)
 
 def get_ebay_listing(url):
-    """Scrapes an eBay listing for key details, including product images."""
+    """Scrapes an eBay listing for key details, including price and description."""
     driver = get_webdriver()
     driver.get(url)
-    time.sleep(3)  # Allow JavaScript to load
+    time.sleep(5)  # Increase wait time for dynamic content
 
     soup = BeautifulSoup(driver.page_source, "html.parser")
     driver.quit()
@@ -67,9 +68,10 @@ def get_ebay_listing(url):
     except AttributeError:
         title = "Not Found"
 
-    # Extract price
+    # Extract price (Handles multiple price formats)
     try:
-        price = soup.find("span", {"itemprop": "price"}).text.strip()
+        price_element = soup.select_one('span[itemprop="price"], span.ux-textspans, div.x-price-primary')
+        price = price_element.text.strip() if price_element else "Not Found"
     except AttributeError:
         price = "Not Found"
 
@@ -109,11 +111,17 @@ def get_ebay_listing(url):
     except AttributeError:
         return_policy = "Not Found"
 
-    # Extract full item description
+    # Extract full item description (Fixes dynamic descriptions)
     try:
-        description_tag = soup.find("div", {"id": "desc_ifr"})
-        description = description_tag.text.strip() if description_tag else "Not Found"
-    except AttributeError:
+        desc_frame = soup.find("iframe", {"id": "desc_ifr"})  # eBay loads descriptions in an iframe
+        if desc_frame:
+            desc_url = desc_frame["src"]
+            desc_page = requests.get(desc_url, headers={"User-Agent": "Mozilla/5.0"})
+            desc_soup = BeautifulSoup(desc_page.content, "html.parser")
+            description = desc_soup.get_text(separator=" ").strip()
+        else:
+            description = "Not Found"
+    except:
         description = "Not Found"
 
     # Extract only the correct product images
@@ -144,7 +152,6 @@ def get_ebay_listing(url):
         "listing_url": url
     }
 
-
 def save_to_db(data):
     """Inserts scraped listing into the database."""
     conn = sqlite3.connect(DB_FILE)
@@ -152,8 +159,8 @@ def save_to_db(data):
     c.execute("""
         INSERT INTO listings (title, price, condition, seller_name, seller_feedback_score, 
                               shipping_location, shipping_cost, return_policy, description, 
-                              image_urls, listing_url)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                              image_urls, listing_url, date_added)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     """, (data["title"], data["price"], data["condition"], data["seller_name"], 
           data["seller_feedback_score"], data["shipping_location"], data["shipping_cost"],
           data["return_policy"], data["description"], data["image_urls"], data["listing_url"]))
@@ -243,10 +250,9 @@ def export_pdf():
 
     return send_file(pdf_file, as_attachment=True)
 
-
 @app.route("/delete_selected", methods=["POST"])
 def delete_selected():
-    """Deletes selected entries from the database."""
+    """Deletes selected entries from the database and refreshes the page."""
     selected_ids = request.form.getlist("selected_ids")  # Get selected IDs from form data
 
     if not selected_ids:
@@ -261,7 +267,7 @@ def delete_selected():
     conn.commit()
     conn.close()
 
-    return jsonify({"status": "success", "message": "Selected listings deleted"}), 200
+    return redirect(url_for("index"))  # Redirect to the main page after deletion
 
 if __name__ == "__main__":
     init_db()
