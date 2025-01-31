@@ -11,16 +11,21 @@ from fpdf import FPDF
 
 app = Flask(__name__)
 
-CHROMEDRIVER_PATH = "/usr/local/bin/chromedriver"  # Update with your path
+# Paths for Chrome and Chromedriver inside Docker
+CHROME_PATH = "/usr/bin/chromium"
+CHROMEDRIVER_PATH = "/usr/bin/chromedriver"
 
+# Selenium WebDriver Setup
 chrome_options = Options()
-chrome_options.add_argument("--headless")
-chrome_options.add_argument("--disable-gpu")
-chrome_options.add_argument("--window-size=1920x1080")
+chrome_options.add_argument("--headless")  # Run in headless mode
+chrome_options.add_argument("--no-sandbox")  # Needed inside Docker
+chrome_options.add_argument("--disable-dev-shm-usage")  # Prevent crashes
+chrome_options.binary_location = CHROME_PATH  # Set Chrome binary path
 
 DB_FILE = "ebay_listings.db"
 
 def init_db():
+    """Create the SQLite database and table if they don't exist."""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute("""
@@ -28,23 +33,31 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT,
             price TEXT,
-            seller_name TEXT
+            condition TEXT,
+            seller_name TEXT,
+            seller_feedback_score TEXT,
+            listing_url TEXT
         )
     """)
     conn.commit()
     conn.close()
 
-def get_ebay_listing(url):
+def get_webdriver():
+    """Initialize Selenium WebDriver."""
     service = Service(CHROMEDRIVER_PATH)
-    driver = webdriver.Chrome(service=service, options=chrome_options)
+    return webdriver.Chrome(service=service, options=chrome_options)
+
+def get_ebay_listing(url):
+    """Scrapes an eBay listing for title, price, condition, seller info, and feedback score."""
+    driver = get_webdriver()
     driver.get(url)
-    time.sleep(3)
-    
+    time.sleep(3)  # Allow JavaScript to load
+
     soup = BeautifulSoup(driver.page_source, "html.parser")
     driver.quit()
 
     try:
-        title = soup.find("h1").text.strip()
+        title = soup.find("h1", {"class": "x-item-title__mainTitle"}).text.strip()
     except AttributeError:
         title = "Not Found"
 
@@ -54,28 +67,48 @@ def get_ebay_listing(url):
         price = "Not Found"
 
     try:
+        condition = soup.find("div", {"class": "x-item-condition-text"}).text.strip()
+    except AttributeError:
+        condition = "Not Found"
+
+    try:
         seller_name = soup.find("span", {"class": "ux-textspans ux-textspans--BOLD"}).text.strip()
     except AttributeError:
         seller_name = "Not Found"
 
-    return {"title": title, "price": price, "seller_name": seller_name, "listing_url": url}
+    try:
+        feedback_score = soup.find("span", {"class": "ux-textspans"}).text.strip()
+    except AttributeError:
+        feedback_score = "Not Found"
+
+    return {
+        "title": title,
+        "price": price,
+        "condition": condition,
+        "seller_name": seller_name,
+        "seller_feedback_score": feedback_score,
+        "listing_url": url
+    }
 
 def save_to_db(data):
+    """Inserts scraped listing into the database."""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute("INSERT INTO listings (title, price, seller_name) VALUES (?, ?, ?)", 
-              (data["title"], data["price"], data["seller_name"]))
+    c.execute("""
+        INSERT INTO listings (title, price, condition, seller_name, seller_feedback_score, listing_url)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (data["title"], data["price"], data["condition"], data["seller_name"], data["seller_feedback_score"], data["listing_url"]))
     conn.commit()
     conn.close()
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    listing_data = None
+    """Main page to enter URLs and view listings."""
     if request.method == "POST":
         ebay_url = request.form.get("ebay_url")
         listing_data = get_ebay_listing(ebay_url)
         save_to_db(listing_data)
-    
+
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute("SELECT id, title, price, seller_name FROM listings")
@@ -86,6 +119,7 @@ def index():
 
 @app.route("/json")
 def get_json():
+    """Returns all data in JSON format."""
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
@@ -96,10 +130,11 @@ def get_json():
 
 @app.route("/export_pdf", methods=["POST"])
 def export_pdf():
+    """Exports selected entries as a PDF."""
     selected_ids = request.form.getlist("selected_ids")
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    query = f"SELECT title, price, seller_name FROM listings WHERE id IN ({','.join(['?'] * len(selected_ids))})"
+    query = f"SELECT title, price, condition, seller_name FROM listings WHERE id IN ({','.join(['?'] * len(selected_ids))})"
     c.execute(query, selected_ids)
     entries = c.fetchall()
     conn.close()
@@ -114,7 +149,8 @@ def export_pdf():
     for entry in entries:
         pdf.cell(0, 10, f"Title: {entry[0]}", ln=True)
         pdf.cell(0, 10, f"Price: {entry[1]}", ln=True)
-        pdf.cell(0, 10, f"Seller: {entry[2]}", ln=True)
+        pdf.cell(0, 10, f"Condition: {entry[2]}", ln=True)
+        pdf.cell(0, 10, f"Seller: {entry[3]}", ln=True)
         pdf.ln(10)
 
     pdf_file = "ebay_export.pdf"
