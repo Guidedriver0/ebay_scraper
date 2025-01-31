@@ -48,19 +48,23 @@
                     {% for listing in listings %}
                     <tr>
                         <td><input type="checkbox" name="selected_ids" value="{{ listing[0] }}"></td>
-                        <td>{{ listing[1] }}</td>
-                        <td>{{ listing[2] }}</td>
-                        <td>{{ listing[3] }}</td>
-                        <td>{{ listing[4] }}</td>
-                        <td>{{ listing[5] }}</td>
-                        <td>{{ listing[6] }}</td>
-                        <td>{{ listing[7] }}</td>
-                        <td>{{ listing[8] }}</td>
-                        <td>{{ listing[9][:200] }}...</td>  <!-- Shortened description -->
+                        <td>{{ listing[1] if listing|length > 1 else "No Title" }}</td>
+                        <td>{{ listing[2] if listing|length > 2 else "No Price" }}</td>
+                        <td>{{ listing[3] if listing|length > 3 else "No Condition" }}</td>
+                        <td>{{ listing[4] if listing|length > 4 else "No Seller" }}</td>
+                        <td>{{ listing[5] if listing|length > 5 else "No Feedback" }}</td>
+                        <td>{{ listing[6] if listing|length > 6 else "No Location" }}</td>
+                        <td>{{ listing[7] if listing|length > 7 else "No Shipping Cost" }}</td>
+                        <td>{{ listing[8] if listing|length > 8 else "No Return Policy" }}</td>
+                        <td>{{ listing[9][:200] + "..." if listing|length > 9 and listing[9] else "No Description" }}</td>
                         <td>
-                            {% for img in listing[10].split('; ') %}
-                                <img src="{{ img }}" class="img-thumbnail" width="75">
-                            {% endfor %}
+                            {% if listing|length > 10 and listing[10] %}
+                                {% for img in listing[10].split('; ') %}
+                                    <img src="{{ img }}" class="img-thumbnail" width="75">
+                                {% endfor %}
+                            {% else %}
+                                No images available
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -99,22 +103,6 @@
                                 <input class="form-check-input" type="checkbox" name="selected_fields" value="seller_feedback_score">
                                 <label class="form-check-label">Seller Feedback Score</label>
                             </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="selected_fields" value="shipping_location">
-                                <label class="form-check-label">Shipping Location</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="selected_fields" value="shipping_cost">
-                                <label class="form-check-label">Shipping Cost</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="selected_fields" value="return_policy">
-                                <label class="form-check-label">Return Policy</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="selected_fields" value="description">
-                                <label class="form-check-label">Description</label>
-                            </div>
                         </form>
                     </div>
                     <div class="modal-footer">
@@ -151,7 +139,6 @@
         let pdfForm = document.getElementById("pdfForm");
         let actionForm = document.getElementById("actionForm");
 
-        // Append selected fields dynamically
         pdfForm.querySelectorAll('input[name="selected_fields"]:checked').forEach(field => {
             let hiddenInput = document.createElement("input");
             hiddenInput.type = "hidden";
@@ -160,7 +147,6 @@
             actionForm.appendChild(hiddenInput);
         });
 
-        // Submit form
         actionForm.action = "/export_pdf";
         actionForm.submit();
     }

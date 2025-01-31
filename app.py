@@ -47,7 +47,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-
 def get_webdriver():
     """Initialize Selenium WebDriver."""
     service = Service(CHROMEDRIVER_PATH)
@@ -160,7 +159,6 @@ def save_to_db(data):
     conn.commit()
     conn.close()
 
-
 @app.route("/", methods=["GET", "POST"])
 def index():
     """Main page to enter URLs and view listings."""
@@ -171,7 +169,12 @@ def index():
 
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute("SELECT id, title, price, seller_name FROM listings")
+    c.execute("""
+        SELECT id, title, price, condition, seller_name, 
+               seller_feedback_score, shipping_location, 
+               shipping_cost, return_policy, description, image_urls 
+        FROM listings
+    """)
     listings = c.fetchall()
     conn.close()
 
