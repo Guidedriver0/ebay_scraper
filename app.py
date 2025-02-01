@@ -50,10 +50,10 @@ def get_webdriver():
     return webdriver.Chrome(service=service, options=chrome_options)
 
 def get_ebay_listing(url):
-    """Scrapes an eBay listing for key details, including item description."""
+    """Scrapes an eBay listing for key details, ensuring correct price and description extraction."""
     driver = get_webdriver()
     driver.get(url)
-    time.sleep(5)  # Increase wait time for JavaScript content
+    time.sleep(5)  # Wait for JavaScript content to load
 
     soup = BeautifulSoup(driver.page_source, "html.parser")
     driver.quit()
@@ -64,16 +64,18 @@ def get_ebay_listing(url):
     except AttributeError:
         title = "Not Found"
 
-    # Extract price (Handles multiple price formats)
+    # Detect if the listing is an Auction or Buy It Now
     try:
-        price = "Not Found"
-        price_element = soup.select_one('span[itemprop="price"], span.ux-textspans, div.x-price-primary')
-        if price_element:
-            price = price_element.get_text(strip=True)
-        elif soup.select_one("span.x-price-approx__price"):
-            price = soup.select_one("span.x-price-approx__price").get_text(strip=True)
-        elif soup.select_one("div.x-price-primary span"):
-            price = soup.select_one("div.x-price-primary span").get_text(strip=True)
+        auction_tag = soup.find("span", text="Place bid")  # Check if auction exists
+        if auction_tag:
+            price = "Auction"
+        else:
+            price = "Not Found"
+
+            # Extract price from the correct div
+            price_element = soup.select_one("div.x-price-primary span.ux-textspans")
+            if price_element:
+                price = price_element.get_text(strip=True)
     except AttributeError:
         price = "Not Found"
 
@@ -83,17 +85,11 @@ def get_ebay_listing(url):
     except AttributeError:
         shipping_location = "Not Found"
 
-    # Extract item description (eBay loads descriptions in an iframe)
+    # Extract "Item Description" (Correct Section)
     try:
-        desc_iframe = soup.find("iframe", {"id": "desc_ifr"})
-        if desc_iframe:
-            desc_url = desc_iframe["src"]
-            desc_page = requests.get(desc_url, headers={"User-Agent": "Mozilla/5.0"})
-            desc_soup = BeautifulSoup(desc_page.content, "html.parser")
-            description = desc_soup.get_text(separator=" ").strip()
-        else:
-            description = "Not Found"
-    except:
+        description_div = soup.find("div", {"class": "x-item-description-child"})  # Locate correct div
+        description = " ".join([p.get_text(strip=True) for p in description_div.find_all("p")])  # Extract text from <p> tags
+    except AttributeError:
         description = "Not Found"
 
     # Extract images (ensures only product images)
@@ -115,6 +111,7 @@ def get_ebay_listing(url):
         "image_urls": "; ".join(image_urls),
         "listing_url": url
     }
+
 
 def save_to_db(data):
     """Inserts scraped listing into the database with a timestamp."""
@@ -141,15 +138,14 @@ def index():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute("""
-        SELECT id, title, price, condition, seller_name, 
-               seller_feedback_score, shipping_location, 
-               shipping_cost, return_policy, description, image_urls 
+        SELECT id, title, price, shipping_location, description, image_urls, date_added
         FROM listings
     """)
     listings = c.fetchall()
     conn.close()
 
     return render_template("index.html", listings=listings)
+
 
 @app.route("/json")
 def get_json():

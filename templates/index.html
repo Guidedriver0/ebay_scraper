@@ -43,6 +43,7 @@
                 <tbody>
                     {% for listing in listings %}
                     <tr>
+                        <!-- Image Carousel -->
                         <td class="images">
                             {% if listing|length > 5 and listing[5] %}
                                 <div id="carousel-{{ loop.index }}" class="carousel slide" data-bs-interval="false">
@@ -66,11 +67,23 @@
                                 No images available
                             {% endif %}
                         </td>
+                        <!-- Checkbox for selection -->
                         <td><input type="checkbox" name="selected_ids" value="{{ listing[0] }}"></td>
+                        <!-- Title -->
                         <td class="title">{{ listing[1] if listing|length > 1 else "No Title" }}</td>
-                        <td class="price">{{ listing[2] if listing|length > 2 else "No Price" }}</td>
+                        <!-- Price (Show "Auction" if applicable) -->
+                        <td class="price">
+                            {% if listing[2] == "Auction" %}
+                                <span class="badge bg-warning text-dark">Auction</span>
+                            {% else %}
+                                {{ listing[2] }}
+                            {% endif %}
+                        </td>
+                        <!-- Location -->
                         <td class="location">{{ listing[3] if listing|length > 3 else "No Location" }}</td>
+                        <!-- Date Added -->
                         <td class="date_added">{{ listing[6] if listing|length > 6 else "Unknown Date" }}</td>
+                        <!-- Description -->
                         <td class="description">
                             <span id="desc-{{ listing[0] }}" class="short-description">
                                 {{ listing[4][:200] }}...  <!-- Show only first 200 characters -->
