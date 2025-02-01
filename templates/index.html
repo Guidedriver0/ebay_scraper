@@ -31,33 +31,25 @@
             <table class="table table-bordered" id="listingTable">
                 <thead>
                     <tr>
+                        <th>Images</th>
                         <th>Select</th>
                         <th class="title">Title</th>
                         <th class="price">Price</th>
-                        <th class="condition">Condition</th>
-                        <th class="seller">Seller</th>
                         <th class="location">Location</th>
                         <th class="date_added">Date Added</th>
-                        <th class="images">Images</th>
+                        <th class="description">Description</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for listing in listings %}
                     <tr>
-                        <td><input type="checkbox" name="selected_ids" value="{{ listing[0] }}"></td>
-                        <td class="title">{{ listing[1] if listing|length > 1 else "No Title" }}</td>
-                        <td class="price">{{ listing[2] if listing|length > 2 else "No Price" }}</td>
-                        <td class="condition">{{ listing[3] if listing|length > 3 else "No Condition" }}</td>
-                        <td class="seller">{{ listing[4] if listing|length > 4 else "No Seller" }}</td>
-                        <td class="location">{{ listing[6] if listing|length > 6 else "No Location" }}</td>
-                        <td class="date_added">{{ listing[11] if listing|length > 11 else "Unknown Date" }}</td>
                         <td class="images">
-                            {% if listing|length > 10 and listing[10] %}
-                                <div id="carousel-{{ loop.index }}" class="carousel slide" data-bs-ride="carousel">
+                            {% if listing|length > 5 and listing[5] %}
+                                <div id="carousel-{{ loop.index }}" class="carousel slide" data-bs-interval="false">
                                     <div class="carousel-inner">
-                                        {% for img in listing[10].split('; ') %}
+                                        {% for img in listing[5].split('; ') %}
                                         <div class="carousel-item {% if loop.first %}active{% endif %}">
-                                            <img src="{{ img }}" class="d-block w-100" style="max-height: 300px; object-fit: contain;">
+                                            <img src="{{ img }}" class="d-block w-100" style="max-height: 400px; object-fit: contain;">
                                         </div>
                                         {% endfor %}
                                     </div>
@@ -74,45 +66,55 @@
                                 No images available
                             {% endif %}
                         </td>
+                        <td><input type="checkbox" name="selected_ids" value="{{ listing[0] }}"></td>
+                        <td class="title">{{ listing[1] if listing|length > 1 else "No Title" }}</td>
+                        <td class="price">{{ listing[2] if listing|length > 2 else "No Price" }}</td>
+                        <td class="location">{{ listing[3] if listing|length > 3 else "No Location" }}</td>
+                        <td class="date_added">{{ listing[6] if listing|length > 6 else "Unknown Date" }}</td>
+                        <td class="description">
+                            <span id="desc-{{ listing[0] }}" class="short-description">
+                                {{ listing[4][:200] }}...  <!-- Show only first 200 characters -->
+                            </span>
+                            <button class="btn btn-sm btn-link" onclick="toggleDescription({{ listing[0] }})">Show More</button>
+                            <span id="desc-full-{{ listing[0] }}" class="full-description d-none">
+                                {{ listing[4] }}  <!-- Full description -->
+                            </span>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </form>
+    </div>
 
-        <!-- PDF Export Modal -->
-        <div class="modal fade" id="pdfModal" tabindex="-1" aria-labelledby="pdfModalLabel" aria-hidden="true">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="pdfModalLabel">Select Fields to Export</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <p>Select which elements to include in the exported PDF:</p>
-                        <form id="pdfForm">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="selected_fields" value="title" checked>
-                                <label class="form-check-label">Title</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="selected_fields" value="price" checked>
-                                <label class="form-check-label">Price</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="selected_fields" value="condition">
-                                <label class="form-check-label">Condition</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="selected_fields" value="seller">
-                                <label class="form-check-label">Seller</label>
-                            </div>
-                        </form>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="button" class="btn btn-success" onclick="submitPdfForm()">Export PDF</button>
-                    </div>
+    <!-- PDF Export Modal -->
+    <div class="modal fade" id="pdfModal" tabindex="-1" aria-labelledby="pdfModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="pdfModalLabel">Select Fields to Export</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Select which elements to include in the exported PDF:</p>
+                    <form id="pdfForm">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="selected_fields" value="title" checked>
+                            <label class="form-check-label">Title</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="selected_fields" value="price" checked>
+                            <label class="form-check-label">Price</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="selected_fields" value="description">
+                            <label class="form-check-label">Description</label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success" onclick="submitPdfForm()">Export PDF</button>
                 </div>
             </div>
         </div>
@@ -125,47 +127,19 @@
             alert("No entries selected.");
             return;
         }
-
         if (confirm("Are you sure you want to delete the selected entries?")) {
             let form = document.getElementById("actionForm");
             form.action = "/delete_selected";
             form.method = "POST";
-
-            fetch("/delete_selected", {
-                method: "POST",
-                body: new FormData(form)
-            })
-            .then(response => {
-                if (response.ok) {
-                    location.reload();
-                } else {
-                    alert("Error deleting items.");
-                }
-            })
-            .catch(error => alert("Request failed: " + error));
+            form.submit();
         }
     }
 
-    function submitPdfForm() {
-        let checkboxes = document.querySelectorAll('input[name="selected_ids"]:checked');
-        if (checkboxes.length === 0) {
-            alert("No entries selected.");
-            return;
-        }
-
-        let pdfForm = document.getElementById("pdfForm");
-        let actionForm = document.getElementById("actionForm");
-
-        pdfForm.querySelectorAll('input[name="selected_fields"]:checked').forEach(field => {
-            let hiddenInput = document.createElement("input");
-            hiddenInput.type = "hidden";
-            hiddenInput.name = "selected_fields";
-            hiddenInput.value = field.value;
-            actionForm.appendChild(hiddenInput);
-        });
-
-        actionForm.action = "/export_pdf";
-        actionForm.submit();
+    function toggleDescription(id) {
+        let shortDesc = document.getElementById("desc-" + id);
+        let fullDesc = document.getElementById("desc-full-" + id);
+        shortDesc.classList.toggle("d-none");
+        fullDesc.classList.toggle("d-none");
     }
     </script>
 

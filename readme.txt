@@ -21,3 +21,7 @@ shortlists
 marketplace/etzy/gumtree
 finance reporting for show
 devon is a whore
+
+
+docker build -t ebay_scraper .
+docker run -p 5050:5000 ebay_scraper

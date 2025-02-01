@@ -8,6 +8,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from bs4 import BeautifulSoup
 from fpdf import FPDF
+import datetime
 
 app = Flask(__name__)
 
@@ -33,16 +34,11 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT,
             price TEXT,
-            condition TEXT,
-            seller_name TEXT,
-            seller_feedback_score TEXT,
             shipping_location TEXT,
-            shipping_cost TEXT,
-            return_policy TEXT,
             description TEXT,
             image_urls TEXT,
             listing_url TEXT,
-            date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            date_added TEXT
         )
     """)
     conn.commit()
@@ -54,10 +50,10 @@ def get_webdriver():
     return webdriver.Chrome(service=service, options=chrome_options)
 
 def get_ebay_listing(url):
-    """Scrapes an eBay listing for key details, including price and description."""
+    """Scrapes an eBay listing for key details, including item description."""
     driver = get_webdriver()
     driver.get(url)
-    time.sleep(5)  # Increase wait time for dynamic content
+    time.sleep(5)  # Increase wait time for JavaScript content
 
     soup = BeautifulSoup(driver.page_source, "html.parser")
     driver.quit()
@@ -70,28 +66,16 @@ def get_ebay_listing(url):
 
     # Extract price (Handles multiple price formats)
     try:
+        price = "Not Found"
         price_element = soup.select_one('span[itemprop="price"], span.ux-textspans, div.x-price-primary')
-        price = price_element.text.strip() if price_element else "Not Found"
+        if price_element:
+            price = price_element.get_text(strip=True)
+        elif soup.select_one("span.x-price-approx__price"):
+            price = soup.select_one("span.x-price-approx__price").get_text(strip=True)
+        elif soup.select_one("div.x-price-primary span"):
+            price = soup.select_one("div.x-price-primary span").get_text(strip=True)
     except AttributeError:
         price = "Not Found"
-
-    # Extract condition
-    try:
-        condition = soup.find("div", {"class": "x-item-condition-text"}).text.strip()
-    except AttributeError:
-        condition = "Not Found"
-
-    # Extract seller name
-    try:
-        seller_name = soup.find("span", {"class": "ux-textspans ux-textspans--BOLD"}).text.strip()
-    except AttributeError:
-        seller_name = "Not Found"
-
-    # Extract seller feedback score
-    try:
-        feedback_score = soup.find("span", {"class": "ux-textspans"}).text.strip()
-    except AttributeError:
-        feedback_score = "Not Found"
 
     # Extract shipping location
     try:
@@ -99,23 +83,11 @@ def get_ebay_listing(url):
     except AttributeError:
         shipping_location = "Not Found"
 
-    # Extract shipping cost
+    # Extract item description (eBay loads descriptions in an iframe)
     try:
-        shipping_cost = soup.find("span", {"id": "fshippingCost"}).text.strip()
-    except AttributeError:
-        shipping_cost = "Not Found"
-
-    # Extract return policy
-    try:
-        return_policy = soup.find("div", {"class": "ux-labels-values__values"}).text.strip()
-    except AttributeError:
-        return_policy = "Not Found"
-
-    # Extract full item description (Fixes dynamic descriptions)
-    try:
-        desc_frame = soup.find("iframe", {"id": "desc_ifr"})  # eBay loads descriptions in an iframe
-        if desc_frame:
-            desc_url = desc_frame["src"]
+        desc_iframe = soup.find("iframe", {"id": "desc_ifr"})
+        if desc_iframe:
+            desc_url = desc_iframe["src"]
             desc_page = requests.get(desc_url, headers={"User-Agent": "Mozilla/5.0"})
             desc_soup = BeautifulSoup(desc_page.content, "html.parser")
             description = desc_soup.get_text(separator=" ").strip()
@@ -124,16 +96,13 @@ def get_ebay_listing(url):
     except:
         description = "Not Found"
 
-    # Extract only the correct product images
+    # Extract images (ensures only product images)
     image_urls = []
     try:
-        image_gallery = soup.find_all("img", {"src": True})  # Find all images on the page
-
+        image_gallery = soup.find_all("img", {"src": True})
         for img in image_gallery:
             img_url = img["src"]
-
-            # Ensure only eBay product images are selected
-            if "ebayimg.com" in img_url and "s-l" in img_url:  # "s-l" ensures it's a product image
+            if "ebayimg.com" in img_url and "s-l" in img_url:
                 image_urls.append(img_url)
     except:
         image_urls = []
@@ -141,29 +110,23 @@ def get_ebay_listing(url):
     return {
         "title": title,
         "price": price,
-        "condition": condition,
-        "seller_name": seller_name,
-        "seller_feedback_score": feedback_score,
         "shipping_location": shipping_location,
-        "shipping_cost": shipping_cost,
-        "return_policy": return_policy,
         "description": description,
-        "image_urls": "; ".join(image_urls),  # Save as a string with semicolon separator
+        "image_urls": "; ".join(image_urls),
         "listing_url": url
     }
 
 def save_to_db(data):
-    """Inserts scraped listing into the database."""
+    """Inserts scraped listing into the database with a timestamp."""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
+    current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # Format timestamp correctly
+
     c.execute("""
-        INSERT INTO listings (title, price, condition, seller_name, seller_feedback_score, 
-                              shipping_location, shipping_cost, return_policy, description, 
-                              image_urls, listing_url, date_added)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    """, (data["title"], data["price"], data["condition"], data["seller_name"], 
-          data["seller_feedback_score"], data["shipping_location"], data["shipping_cost"],
-          data["return_policy"], data["description"], data["image_urls"], data["listing_url"]))
+        INSERT INTO listings (title, price, shipping_location, description, image_urls, listing_url, date_added)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (data["title"], data["price"], data["shipping_location"], data["description"], data["image_urls"], data["listing_url"], current_time))
+
     conn.commit()
     conn.close()
 
